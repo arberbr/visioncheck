@@ -1,15 +1,21 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from 'dotenv';
-import { evaluateImageRoute } from './routes/evaluate-image';
-import { healthRoute } from './routes/health';
+import { evaluateImageRoute } from '@/routes/evaluate-image';
+import { healthRoute } from '@/routes/health';
 
-// Load environment variables
 config();
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '127.0.0.1';
 
+/**
+ * Builds and configures the Fastify server instance.
+ * 
+ * Sets up logging, CORS, and registers all routes.
+ * 
+ * @returns A configured Fastify server instance
+ */
 async function buildServer() {
   const fastify = Fastify({
     logger: {
@@ -27,23 +33,26 @@ async function buildServer() {
         },
   });
 
-  // Register CORS plugin
   await fastify.register(cors, {
-    origin: true, // Allow all origins in PoC (configure appropriately for production)
+    origin: true,
   });
 
-  // Register routes
   await fastify.register(healthRoute);
   await fastify.register(evaluateImageRoute);
 
   return fastify;
 }
 
+/**
+ * Starts the HTTP server and begins listening for requests.
+ * 
+ * Checks for required environment variables and logs server information.
+ * Exits the process if server startup fails.
+ */
 async function start() {
   try {
     const server = await buildServer();
 
-    // Check for required environment variables
     if (!process.env.OPENROUTER_API_KEY) {
       server.log.warn(
         'WARNING: OPENROUTER_API_KEY environment variable is not set. The service will not function without it.'

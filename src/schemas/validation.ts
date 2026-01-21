@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+/**
+ * Zod schema for validating the evaluate-image request body.
+ * 
+ * Validates that image_url is a valid HTTP/HTTPS URL and feature is a non-empty string (max 500 chars).
+ */
 export const EvaluateImageRequestSchema = z.object({
   image_url: z
     .string()
@@ -21,8 +26,16 @@ export const EvaluateImageRequestSchema = z.object({
     .max(500, 'feature description is too long'),
 });
 
+/**
+ * TypeScript type inferred from EvaluateImageRequestSchema.
+ */
 export type EvaluateImageRequest = z.infer<typeof EvaluateImageRequestSchema>;
 
+/**
+ * Zod schema for validating the evaluate-image response.
+ * 
+ * Ensures exists is boolean, confidence is between 0-1, and reasoning is a string.
+ */
 export const EvaluateImageResponseSchema = z.object({
   exists: z.boolean(),
   confidence: z.number().min(0).max(1),
@@ -30,4 +43,7 @@ export const EvaluateImageResponseSchema = z.object({
   status: z.enum(['success', 'error']),
 });
 
+/**
+ * TypeScript type inferred from EvaluateImageResponseSchema.
+ */
 export type EvaluateImageResponse = z.infer<typeof EvaluateImageResponseSchema>;

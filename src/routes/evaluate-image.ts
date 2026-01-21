@@ -1,7 +1,19 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { EvaluateImageRequestSchema } from '../schemas/validation';
-import { VisionService } from '../services/vision-service';
+import { EvaluateImageRequestSchema } from '@/schemas/validation';
+import { VisionService } from '@/services/vision-service';
 
+/**
+ * Registers the /evaluate-image POST route for image feature detection.
+ * 
+ * This route accepts an image URL and feature description, then uses AI vision
+ * to determine if the feature exists in the image.
+ * 
+ * @param fastify - The Fastify instance to register the route on
+ * 
+ * @example
+ * POST /evaluate-image
+ * Body: { "image_url": "https://example.com/image.jpg", "feature": "a dog" }
+ */
 export async function evaluateImageRoute(
   fastify: FastifyInstance
 ) {

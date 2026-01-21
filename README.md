@@ -173,7 +173,9 @@ visioncheck/
 │   │   ├── evaluate-image.ts    # Image evaluation endpoint
 │   │   └── health.ts            # Health check endpoint
 │   ├── services/
-│   │   └── vision-service.ts   # OpenRouter API integration
+│   │   └── vision-service.ts    # OpenRouter API integration
+│   ├── utils/
+│   │   └── image.ts             # Image helpers (fetch base64, content type)
 │   └── schemas/
 │       └── validation.ts        # Zod validation schemas
 ├── dist/                        # Compiled JavaScript (generated)
@@ -189,7 +191,7 @@ visioncheck/
 1. **Request Validation**: Validates image URL format and feature description using Zod schemas
 2. **Image Fetching**: Downloads image from provided URL with 10-second timeout
 3. **Image Processing**: Converts image to base64 and validates format (JPG, PNG, WebP)
-4. **AI Analysis**: Sends image and feature description to OpenRouter API with selected vision model
+4. **AI Analysis**: Sends image and feature description to OpenRouter API with a default free vision model
 5. **Response Parsing**: Extracts JSON from AI response, validates structure, and normalizes confidence scores
 6. **Error Handling**: Comprehensive error handling for invalid URLs, timeouts, API errors, and parsing failures
 
@@ -239,6 +241,8 @@ npm run type-check
 | `HOST` | No | `127.0.0.1` | Server host |
 | `NODE_ENV` | No | `development` | Environment mode (affects logging) |
 
+Only `OPENROUTER_API_KEY` is required. The service uses a built-in default model (`allenai/molmo-2-8b:free`).
+
 ## Technical Stack
 
 - **Runtime**: Node.js with TypeScript
@@ -249,3 +253,4 @@ npm run type-check
   - Supports any vision-capable model on OpenRouter
 - **HTTP Client**: Axios
 - **Logging**: Pino (with pino-pretty for development)
+- **Path aliases**: `@/*` mapped to `src/*` (rewritten in build via `tsc-alias`)
