@@ -1,12 +1,19 @@
-import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
 import { EvaluateImageResponse } from '../schemas/validation';
 
-export class VisionService {
-  private anthropic: Anthropic;
+export interface VisionServiceConfig {
+  apiKey: string;
+  model?: string;
+}
 
-  constructor(apiKey: string) {
-    this.anthropic = new Anthropic({ apiKey });
+export class VisionService {
+  private apiKey: string;
+  private model: string;
+
+  constructor(config: VisionServiceConfig) {
+    this.apiKey = config.apiKey;
+    // Default to free vision model: allenai/molmo-2-8b:free
+    this.model = config.model || 'allenai/molmo-2-8b:free';
   }
 
   /**
@@ -56,15 +63,89 @@ export class VisionService {
       const imageBase64 = await this.fetchImageAsBase64(imageUrl);
 
       // Determine content type from URL or default to jpeg
-      let contentType = 'image/jpeg';
-      if (imageUrl.toLowerCase().includes('.png')) {
-        contentType = 'image/png';
-      } else if (imageUrl.toLowerCase().includes('.webp')) {
-        contentType = 'image/webp';
-      }
+      const contentType = this.getContentType(imageUrl);
 
       // Construct the prompt for the vision model
-      const prompt = `Analyze this image carefully. Does it contain or show "${feature}"?
+      const prompt = this.buildPrompt(feature);
+
+      // Create base64 data URL
+      const dataUrl = `data:${contentType};base64,${imageBase64}`;
+
+      // Call OpenRouter API
+      const response = await axios.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          model: this.model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: prompt,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: dataUrl,
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 500,
+          temperature: 0.3,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'https://github.com',
+            'X-Title': process.env.OPENROUTER_X_TITLE || 'VisionCheck',
+          },
+          timeout: 30000, // 30 second timeout
+        }
+      );
+
+      const content = response.data?.choices?.[0]?.message?.content;
+      
+      if (!content) {
+        throw new Error('No response from AI model');
+      }
+
+      return this.parseResponse(content);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          const errorMessage = error.response.data?.error?.message || error.response.statusText;
+          throw new Error(`OpenRouter API error: ${errorMessage}`);
+        }
+        throw new Error(`OpenRouter API request failed: ${error.message}`);
+      }
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(`Vision analysis failed: ${String(error)}`);
+    }
+  }
+
+  /**
+   * Determines content type from image URL
+   */
+  private getContentType(imageUrl: string): string {
+    if (imageUrl.toLowerCase().includes('.png')) {
+      return 'image/png';
+    } else if (imageUrl.toLowerCase().includes('.webp')) {
+      return 'image/webp';
+    }
+    return 'image/jpeg';
+  }
+
+  /**
+   * Builds the prompt for vision analysis
+   */
+  private buildPrompt(feature: string): string {
+    return `Analyze this image carefully. Does it contain or show "${feature}"?
 
 Consider:
 - Exact matches (e.g., if asked for "a golden retriever" and the image shows a golden retriever)
@@ -78,84 +159,47 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no code
   "confidence": a number between 0.0 and 1.0,
   "reasoning": "a brief explanation of why you reached this conclusion"
 }`;
+  }
 
-      // Call Anthropic Claude Haiku Vision API
-      const response = await this.anthropic.messages.create({
-        model: 'claude-3-5-haiku-20241022',
-        max_tokens: 500,
-        temperature: 0.3, // Lower temperature for more consistent results
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: contentType as 'image/jpeg' | 'image/png' | 'image/webp',
-                  data: imageBase64,
-                },
-              },
-              {
-                type: 'text',
-                text: prompt,
-              },
-            ],
-          },
-        ],
-      });
+  /**
+   * Parses and validates the AI response
+   */
+  private parseResponse(content: string): EvaluateImageResponse {
+    let parsedResponse: {
+      exists: boolean;
+      confidence: number;
+      reasoning: string;
+    };
 
-      // Extract text content from response
-      const textBlock = response.content.find((block) => block.type === 'text');
-      const content = textBlock?.type === 'text' ? textBlock.text : null;
-      
-      if (!content) {
-        throw new Error('No response from AI model');
-      }
-
-      // Parse the JSON response
-      let parsedResponse: {
-        exists: boolean;
-        confidence: number;
-        reasoning: string;
-      };
-
-      try {
-        // Remove any markdown code blocks if present
-        const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        parsedResponse = JSON.parse(cleanedContent);
-      } catch (parseError) {
-        throw new Error(`Failed to parse AI response as JSON: ${content}`);
-      }
-
-      // Validate and normalize the response
-      if (typeof parsedResponse.exists !== 'boolean') {
-        throw new Error('AI response missing valid "exists" boolean field');
-      }
-
-      if (typeof parsedResponse.confidence !== 'number') {
-        throw new Error('AI response missing valid "confidence" number field');
-      }
-
-      // Ensure confidence is between 0 and 1
-      const confidence = Math.max(0, Math.min(1, parsedResponse.confidence));
-
-      if (typeof parsedResponse.reasoning !== 'string') {
-        throw new Error('AI response missing valid "reasoning" string field');
-      }
-
-      return {
-        exists: parsedResponse.exists,
-        confidence,
-        reasoning: parsedResponse.reasoning.trim(),
-        status: 'success',
-      };
-    } catch (error) {
-      // Re-throw with more context if it's already a known error
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error(`Vision analysis failed: ${String(error)}`);
+    try {
+      // Remove any markdown code blocks if present
+      const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      parsedResponse = JSON.parse(cleanedContent);
+    } catch (parseError) {
+      throw new Error(`Failed to parse AI response as JSON: ${content}`);
     }
+
+    // Validate and normalize the response
+    if (typeof parsedResponse.exists !== 'boolean') {
+      throw new Error('AI response missing valid "exists" boolean field');
+    }
+
+    if (typeof parsedResponse.confidence !== 'number') {
+      throw new Error('AI response missing valid "confidence" number field');
+    }
+
+    // Ensure confidence is between 0 and 1
+    const confidence = Math.max(0, Math.min(1, parsedResponse.confidence));
+
+    if (typeof parsedResponse.reasoning !== 'string') {
+      throw new Error('AI response missing valid "reasoning" string field');
+    }
+
+    return {
+      exists: parsedResponse.exists,
+      confidence,
+      reasoning: parsedResponse.reasoning.trim(),
+      status: 'success',
+    };
   }
 }

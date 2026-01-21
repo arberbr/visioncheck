@@ -44,10 +44,12 @@ async function start() {
     const server = await buildServer();
 
     // Check for required environment variables
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       server.log.warn(
-        'WARNING: ANTHROPIC_API_KEY environment variable is not set. The service will not function without it.'
+        'WARNING: OPENROUTER_API_KEY environment variable is not set. The service will not function without it.'
       );
+    } else {
+      server.log.info('Using OpenRouter API with model: allenai/molmo-2-8b:free');
     }
 
     await server.listen({ port: PORT, host: HOST });

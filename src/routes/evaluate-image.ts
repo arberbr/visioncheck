@@ -5,7 +5,6 @@ import { VisionService } from '../services/vision-service';
 export async function evaluateImageRoute(
   fastify: FastifyInstance
 ) {
-  // description and tags are valid Fastify schema properties for OpenAPI docs
   const routeSchema = {
     description: 'Evaluate if an image contains a specific feature using AI vision',
     tags: ['vision'],
@@ -66,7 +65,6 @@ export async function evaluateImageRoute(
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        // Validate request body using Zod
         const validationResult = EvaluateImageRequestSchema.safeParse(request.body);
 
         if (!validationResult.success) {
@@ -78,27 +76,25 @@ export async function evaluateImageRoute(
 
         const { image_url, feature } = validationResult.data;
 
-        // Get Anthropic API key from environment
-        const apiKey = process.env.ANTHROPIC_API_KEY;
+        const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
-          fastify.log.error('ANTHROPIC_API_KEY environment variable is not set');
+          fastify.log.error('OPENROUTER_API_KEY environment variable is not set');
           return reply.status(500).send({
-            error: 'Server configuration error: Anthropic API key not configured',
+            error: 'Server configuration error: OpenRouter API key not configured',
             status: 'error' as const,
           });
         }
 
-        // Initialize vision service and analyze image
-        const visionService = new VisionService(apiKey);
+        const visionService = new VisionService({
+          apiKey,
+        });
         const result = await visionService.evaluateImage(image_url, feature);
 
         return reply.status(200).send(result);
       } catch (error) {
         fastify.log.error(error, 'Error evaluating image');
 
-        // Handle known error types
         if (error instanceof Error) {
-          // Client errors (invalid URL, timeout, etc.)
           if (
             error.message.includes('fetch') ||
             error.message.includes('timeout') ||
@@ -111,7 +107,6 @@ export async function evaluateImageRoute(
             });
           }
 
-          // Server/AI errors
           return reply.status(500).send({
             error: error.message || 'An unexpected error occurred during image evaluation',
             status: 'error' as const,

@@ -1,8 +1,5 @@
 import { z } from 'zod';
 
-/**
- * Schema for the POST /evaluate-image request body
- */
 export const EvaluateImageRequestSchema = z.object({
   image_url: z
     .string()
@@ -26,9 +23,6 @@ export const EvaluateImageRequestSchema = z.object({
 
 export type EvaluateImageRequest = z.infer<typeof EvaluateImageRequestSchema>;
 
-/**
- * Schema for the API response
- */
 export const EvaluateImageResponseSchema = z.object({
   exists: z.boolean(),
   confidence: z.number().min(0).max(1),
