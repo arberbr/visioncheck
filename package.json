@@ -32,7 +32,7 @@
     "@fastify/rate-limit": "^7.0.7",
     "axios": "^1.6.7",
     "dotenv": "^16.4.1",
-    "fastify": "^4.26.2",
+    "fastify": "^5.7.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
